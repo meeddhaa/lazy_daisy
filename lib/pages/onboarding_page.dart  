@@ -1,0 +1,433 @@
+import 'package:flutter/material.dart';
+import 'package:mini_habit_tracker/services/user_service.dart';
+import 'package:provider/provider.dart';
+
+class OnboardingPage extends StatefulWidget {
+  final VoidCallback onComplete;
+  const OnboardingPage({super.key, required this.onComplete});
+
+  @override
+  State<OnboardingPage> createState() => _OnboardingPageState();
+}
+
+class _OnboardingPageState extends State<OnboardingPage>
+    with TickerProviderStateMixin {
+  int _step = 0; // 0 = welcome, 1 = name, 2 = gender
+  final _nameCtrl = TextEditingController();
+  UserGender? _selectedGender;
+
+  late AnimationController _fadeCtrl;
+  late AnimationController _floatCtrl;
+  late Animation<double> _fade;
+  late Animation<double> _float;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _floatCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2400))
+      ..repeat(reverse: true);
+    _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _float = Tween<double>(begin: -8, end: 8).animate(
+        CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
+    _fadeCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeCtrl.dispose();
+    _floatCtrl.dispose();
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  void _nextStep() {
+    _fadeCtrl.reset();
+    setState(() => _step++);
+    _fadeCtrl.forward();
+  }
+
+  Future<void> _finish() async {
+    if (_selectedGender == null) return;
+    await context.read<UserService>().completeOnboarding(
+          name: _nameCtrl.text.trim(),
+          gender: _selectedGender!,
+        );
+    widget.onComplete();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF080612),
+      body: FadeTransition(
+        opacity: _fade,
+        child: SafeArea(
+          child: _step == 0
+              ? _WelcomeStep(onNext: _nextStep, float: _float)
+              : _step == 1
+                  ? _NameStep(ctrl: _nameCtrl, onNext: _nextStep)
+                  : _GenderStep(
+                      selected: _selectedGender,
+                      onSelect: (g) => setState(() => _selectedGender = g),
+                      onFinish: _finish,
+                    ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Step 0: Welcome ───────────────────────────────────────────────────────────
+
+class _WelcomeStep extends StatelessWidget {
+  final VoidCallback onNext;
+  final Animation<double> float;
+  const _WelcomeStep({required this.onNext, required this.float});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        children: [
+          const Spacer(flex: 2),
+          AnimatedBuilder(
+            animation: float,
+            builder: (_, child) => Transform.translate(
+              offset: Offset(0, float.value),
+              child: child,
+            ),
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  const Color(0xFFFF6B9D).withOpacity(0.9),
+                  const Color(0xFFAB47BC).withOpacity(0.5),
+                  Colors.transparent,
+                ]),
+                boxShadow: [
+                  BoxShadow(
+                      color: const Color(0xFFFF6B9D).withOpacity(0.4),
+                      blurRadius: 50,
+                      spreadRadius: 10),
+                ],
+              ),
+              child: const Center(
+                  child: Text('🌸', style: TextStyle(fontSize: 64))),
+            ),
+          ),
+          const SizedBox(height: 48),
+          const Text(
+            'Welcome to\nMini Habit Tracker',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -1.5,
+              height: 1.1,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Build powerful habits, track your mood,\nand understand your body better.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.white.withOpacity(0.45),
+              height: 1.6,
+            ),
+          ),
+          const Spacer(flex: 2),
+          _GlowButton(
+            label: "Let's Get Started",
+            color: const Color(0xFFFF6B9D),
+            onTap: onNext,
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 1: Name ──────────────────────────────────────────────────────────────
+
+class _NameStep extends StatelessWidget {
+  final TextEditingController ctrl;
+  final VoidCallback onNext;
+  const _NameStep({required this.ctrl, required this.onNext});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 60),
+          Text('What should\nwe call you?',
+              style: const TextStyle(
+                fontSize: 38,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -1.5,
+                height: 1.1,
+              )),
+          const SizedBox(height: 12),
+          Text('This helps us personalise your experience.',
+              style: TextStyle(
+                  fontSize: 15, color: Colors.white.withOpacity(0.4))),
+          const SizedBox(height: 48),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: const Color(0xFFFF6B9D).withOpacity(0.3)),
+            ),
+            child: TextField(
+              controller: ctrl,
+              autofocus: true,
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: 'Your name',
+                hintStyle: TextStyle(
+                    color: Colors.white.withOpacity(0.2), fontSize: 20),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 20),
+              ),
+            ),
+          ),
+          const Spacer(),
+          _GlowButton(
+            label: 'Continue →',
+            color: const Color(0xFFFF6B9D),
+            onTap: onNext,
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Step 2: Gender ────────────────────────────────────────────────────────────
+
+class _GenderStep extends StatelessWidget {
+  final UserGender? selected;
+  final void Function(UserGender) onSelect;
+  final VoidCallback onFinish;
+  const _GenderStep(
+      {required this.selected,
+      required this.onSelect,
+      required this.onFinish});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 60),
+          const Text('Tell us\nabout yourself',
+              style: TextStyle(
+                fontSize: 38,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -1.5,
+                height: 1.1,
+              )),
+          const SizedBox(height: 12),
+          Text(
+            'This unlocks personalised features like\nperiod tracking for female users.',
+            style: TextStyle(
+                fontSize: 15, color: Colors.white.withOpacity(0.4), height: 1.5),
+          ),
+          const SizedBox(height: 40),
+          _GenderCard(
+            emoji: '♂️',
+            label: 'Male',
+            description: 'Habit tracking & mood insights',
+            color: const Color(0xFF42A5F5),
+            isSelected: selected == UserGender.male,
+            onTap: () => onSelect(UserGender.male),
+          ),
+          const SizedBox(height: 14),
+          _GenderCard(
+            emoji: '♀️',
+            label: 'Female',
+            description: 'Habit tracking + period & cycle tracking',
+            color: const Color(0xFFFF6B9D),
+            isSelected: selected == UserGender.female,
+            onTap: () => onSelect(UserGender.female),
+            badge: '🌸 Period Tracking Unlocked',
+          ),
+          const SizedBox(height: 14),
+          _GenderCard(
+            emoji: '⚧️',
+            label: 'Prefer not to say',
+            description: 'Habit tracking & mood insights',
+            color: const Color(0xFF7C6FF7),
+            isSelected: selected == UserGender.other,
+            onTap: () => onSelect(UserGender.other),
+          ),
+          const Spacer(),
+          AnimatedOpacity(
+            opacity: selected != null ? 1.0 : 0.35,
+            duration: const Duration(milliseconds: 300),
+            child: _GlowButton(
+              label: "Let's go!  🚀",
+              color: selected == UserGender.female
+                  ? const Color(0xFFFF6B9D)
+                  : const Color(0xFF7C6FF7),
+              onTap: selected != null ? onFinish : () {},
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+}
+
+class _GenderCard extends StatelessWidget {
+  final String emoji, label, description;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final String? badge;
+  const _GenderCard({
+    required this.emoji,
+    required this.label,
+    required this.description,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withOpacity(0.14)
+              : Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isSelected ? color : Colors.white.withOpacity(0.08),
+            width: isSelected ? 1.8 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                      color: color.withOpacity(0.25),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4))
+                ]
+              : null,
+        ),
+        child: Row(children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Center(
+                child: Text(emoji, style: const TextStyle(fontSize: 26))),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: isSelected ? color : Colors.white,
+                          letterSpacing: -0.3)),
+                  const SizedBox(height: 3),
+                  Text(description,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.4))),
+                  if (badge != null && isSelected) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border:
+                            Border.all(color: color.withOpacity(0.4)),
+                      ),
+                      child: Text(badge!,
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: color,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ]),
+          ),
+          if (isSelected)
+            Icon(Icons.check_circle_rounded, color: color, size: 22),
+        ]),
+      ),
+    );
+  }
+}
+
+class _GlowButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _GlowButton(
+      {required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                colors: [color, color.withOpacity(0.7)]),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                  color: color.withOpacity(0.45),
+                  blurRadius: 28,
+                  offset: const Offset(0, 8))
+            ],
+          ),
+          child: Center(
+            child: Text(label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2)),
+          ),
+        ),
+      );
+}
